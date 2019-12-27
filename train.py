@@ -16,9 +16,9 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = '/mlsteam/car_masking/train/'
-dir_mask = '/mlsteam/car_masking/train_masks/'
-dir_checkpoint = '/mlsteam/car_masking/checkpoints/'
+dir_img = '/mlsteam/input/car_masking/train/'
+dir_mask = '/mlsteam/input/car_masking/train_masks/'
+dir_checkpoint = '/mlsteam/input/car_masking/checkpoints/'
 
 
 def train_net(net,
