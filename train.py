@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, random_split
 
 dir_img = '/mlsteam/input/car_masking/train/'
 dir_mask = '/mlsteam/input/car_masking/train_masks/'
-dir_checkpoint = '/mlsteam/input/car_masking/checkpoints/'
+dir_checkpoint = '/mlsteam/lab/checkpoints/'
 
 
 def train_net(net,
