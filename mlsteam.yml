@@ -1,0 +1,11 @@
+command: ./train.py -b 1
+description: Carvana Image Masking Challenge
+env: myelintek/python-gpu:v9
+gpu: 1
+hashtag:
+- car_masking
+- unet
+input:
+- dest: /mlsteam/input/car_masking
+  source: car_masking
+name: segmentaion
