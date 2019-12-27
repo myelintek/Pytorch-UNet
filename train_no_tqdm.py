@@ -87,8 +87,7 @@ def train_net(net,
                 writer.add_scalar('Loss/train', loss.item(), global_step)
 
                 #pbar.set_postfix(**{'loss (batch)': loss.item()})
-                print("Training: epoch {:6.4f}, loss {} ".format(epoch+(step/n_train), loss.item()))
-                step += 1
+                print("Training: epoch {:6.4f}, loss {} ".format((global_step/n_train), loss.item()))
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -99,11 +98,13 @@ def train_net(net,
                 if global_step % (len(dataset) // (10 * batch_size)) == 0:
                     val_score = eval_net(net, val_loader, device, n_val)
                     if net.n_classes > 1:
-                        logging.info('Validation cross entropy: {}'.format(val_score))
+                        #logging.info('Validation cross entropy: {}'.format(val_score))
+                        print("Validation: epoch {:6.4f}, cross_entropy {} ".format((global_step/n_train), val_score))
                         writer.add_scalar('Loss/test', val_score, global_step)
 
                     else:
-                        logging.info('Validation Dice Coeff: {}'.format(val_score))
+                        #logging.info('Validation Dice Coeff: {}'.format(val_score))
+                        print("Validation: epoch {:6.4f}, Dice_Coeff {} ".format((global_step/n_train), val_score))
                         writer.add_scalar('Dice/test', val_score, global_step)
 
                     writer.add_images('images', imgs, global_step)
