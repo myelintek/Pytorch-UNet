@@ -7,9 +7,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
-from tqdm import tqdm
+#from tqdm import tqdm
 
-from eval import eval_net
+from eval_no_tqdm import eval_net
+#from eval import eval_net
 from unet import UNet
 
 from torch.utils.tensorboard import SummaryWriter
