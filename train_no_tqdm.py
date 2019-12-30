@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader, random_split
 
 dir_img = '/mlsteam/input/car_masking/train/'
 dir_mask = '/mlsteam/input/car_masking/train_masks/'
-dir_checkpoint = '/mlsteam/input/car_masking/checkpoints/'
+dir_checkpoint = '/mlsteam/lab/checkpoints/'
 
 
 def train_net(net,
@@ -36,7 +36,7 @@ def train_net(net,
     n_train = len(dataset) - n_val
     train, val = random_split(dataset, [n_train, n_val])
     
-    # ****** can't use worker, unless docker specify --ipc=host ******
+    # ****** can't use worker, or docker specify --ipc=host ******
     #train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
     #val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, pin_memory=True)
