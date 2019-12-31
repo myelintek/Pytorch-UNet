@@ -37,6 +37,7 @@ def train_net(net,
     train, val = random_split(dataset, [n_train, n_val])
     
     # ****** can't use worker, or docker specify --ipc=host ******
+    #https://github.com/ultralytics/yolov3/issues/283
     #train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
     #val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, pin_memory=True)
