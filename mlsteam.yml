@@ -4,6 +4,7 @@ env: myelintek/python-gpu:v9
 gpu: 1
 hashtag:
 - car_masking
+- pytorch
 - unet
 input:
 - dest: /mlsteam/input/car_masking
