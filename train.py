@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
-from tqdm import tqdm
+#from tqdm import tqdm
 
 from eval import eval_net
 from unet import UNet
@@ -16,8 +16,8 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = '/mlsteam/input/car_masking/train/'
-dir_mask = '/mlsteam/input/car_masking/train_masks/'
+dir_img = '/mlsteam/input/train/'
+dir_mask = '/mlsteam/input/train_masks/'
 dir_checkpoint = '/mlsteam/lab/checkpoints/'
 
 
@@ -28,14 +28,21 @@ def train_net(net,
               lr=0.1,
               val_percent=0.1,
               save_cp=True,
-              img_scale=0.5):
+              img_scale=0.5,
+              val_epoch=1.0):
+
+    if (isinstance(net, nn.DataParallel)):
+        origin_net = net.module
+    else:
+        origin_net = net
 
     dataset = BasicDataset(dir_img, dir_mask, img_scale)
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
     train, val = random_split(dataset, [n_train, n_val])
     
-    # ****** can't use worker, unless docker specify --ipc=host ******
+    # ****** can't use worker, or docker specify --ipc=host ******
+    #https://github.com/ultralytics/yolov3/issues/283
     #train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
     #val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, pin_memory=True)
@@ -55,8 +62,9 @@ def train_net(net,
         Images scaling:  {img_scale}
     ''')
 
+
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8)
-    if net.n_classes > 1:
+    if origin_net.n_classes > 1:
         criterion = nn.CrossEntropyLoss()
     else:
         criterion = nn.BCEWithLogitsLoss()
@@ -65,17 +73,18 @@ def train_net(net,
         net.train()
 
         epoch_loss = 0
-        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
+        #with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
+        if True:
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
-                assert imgs.shape[1] == net.n_channels, \
+                assert imgs.shape[1] == origin_net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
                     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
                     'the images are loaded correctly.'
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
-                mask_type = torch.float32 if net.n_classes == 1 else torch.long
+                mask_type = torch.float32 if origin_net.n_classes == 1 else torch.long
                 true_masks = true_masks.to(device=device, dtype=mask_type)
 
                 masks_pred = net(imgs)
@@ -83,26 +92,30 @@ def train_net(net,
                 epoch_loss += loss.item()
                 writer.add_scalar('Loss/train', loss.item(), global_step)
 
-                pbar.set_postfix(**{'loss (batch)': loss.item()})
+                #pbar.set_postfix(**{'loss (batch)': loss.item()})
+                print("Training: epoch {:6.4f}, loss {} ".format((global_step*batch_size/n_train), loss.item()))
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-                pbar.update(imgs.shape[0])
+                #pbar.update(imgs.shape[0])
                 global_step += 1
-                if global_step % (len(dataset) // (10 * batch_size)) == 0:
+                if (global_step * batch_size) % (n_train // (batch_size / val_epoch)) == 0:
                     val_score = eval_net(net, val_loader, device, n_val)
-                    if net.n_classes > 1:
-                        logging.info('Validation cross entropy: {}'.format(val_score))
+                    if origin_net.n_classes > 1:
+                        #logging.info('Validation cross entropy: {}'.format(val_score))
+                        print("Validation: epoch {:6.4f}, cross_entropy {} ".format((global_step * batch_size/n_train), val_score))
                         writer.add_scalar('Loss/test', val_score, global_step)
 
                     else:
-                        logging.info('Validation Dice Coeff: {}'.format(val_score))
+                        #logging.info('Validation Dice Coeff: {}'.format(val_score))
+                        print("Validation: epoch {:6.4f}, Dice_Coeff {} ".format((global_step * batch_size/n_train), val_score))
                         writer.add_scalar('Dice/test', val_score, global_step)
 
-                    writer.add_images('images', imgs, global_step)
-                    if net.n_classes == 1:
+                    # spent to much resource
+                    #writer.add_images('images', imgs, global_step)
+                    if origin_net.n_classes == 1:
                         writer.add_images('masks/true', true_masks, global_step)
                         writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
 
@@ -117,6 +130,17 @@ def train_net(net,
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
     writer.close()
+
+
+class CheckGPUs(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if not torch.cuda.is_available():
+            raise argparse.ArgumentError(self, "No GPU available.")
+        gpus = [int(i) for i in set(values.split(','))]
+        for g in gpus:
+            if not 0 < g < torch.cuda.device_count():
+                raise argparse.ArgumentError(self, "GPU number invalid: "+g)
+        setattr(namespace, self.dest, gpus)
 
 
 def get_args():
@@ -134,6 +158,11 @@ def get_args():
                         help='Downscaling factor of the images')
     parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
                         help='Percent of the data that is used as validation (0-100)')
+
+    parser.add_argument('--validation-epoch', dest='val_epoch', type=float, default=1.0,
+                        help='Period epochs of Validation')
+    parser.add_argument('-g', '--gpu-list', dest='gpu_list', type=str, default=None, action=CheckGPUs,
+                        help='Specify visibal GPUs')
 
     return parser.parse_args()
 
@@ -162,6 +191,14 @@ if __name__ == '__main__':
         )
         logging.info(f'Model loaded from {args.load}')
 
+    if device.type == 'cuda':
+        if torch.cuda.device_count() > 1:
+            if args.gpu_list:
+                net = nn.DataParallel(net, device_ids=args.gpu_list)
+                device=torch.device(args.gpu_list[0])
+            else:
+                net = nn.DataParallel(net)
+    
     net.to(device=device)
     # faster convolutions, but more memory
     # cudnn.benchmark = True
@@ -173,7 +210,8 @@ if __name__ == '__main__':
                   lr=args.lr,
                   device=device,
                   img_scale=args.scale,
-                  val_percent=args.val / 100)
+                  val_percent=args.val / 100,
+                  val_epoch=args.val_epoch)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')
