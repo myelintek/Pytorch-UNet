@@ -44,8 +44,11 @@ def train_net(net,
     dataset = BasicDataset(dir_img, dir_mask, img_scale)
 
     # get first image's shape, pass into summary
-    summary(origin_net, dataset.__getitem__(0)['image'].size(), batch_size=batch_size//len(gpu_list))
-
+    if gpu_list:
+        summary(origin_net, dataset.__getitem__(0)['image'].size(), batch_size=batch_size//len(gpu_list))
+    else:
+        summary(origin_net, dataset.__getitem__(0)['image'].size(), batch_size=batch_size)
+ 
     net.to(device=device)
 
     n_val = int(len(dataset) * val_percent)
