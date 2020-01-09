@@ -17,16 +17,11 @@ You can easily test the output masks on your images via the CLI.
 
 To predict a single image and save it:
 
-`python predict.py -i image.jpg -o output.jpg`
-
-To predict a multiple images and show them without saving them:
-
-`python predict.py -i image1.jpg image2.jpg --viz --no-save`
+`python predict.py -i test/ -o test_out
 
 ```shell script
 > python predict.py -h
-usage: predict.py [-h] [--model FILE] --input INPUT [INPUT ...]
-                  [--output INPUT [INPUT ...]] [--viz] [--no-save]
+usage: predict.py [-h] [--model FILE --input folder --output folder]
                   [--mask-threshold MASK_THRESHOLD] [--scale SCALE]
 
 Predict masks from input images
@@ -36,13 +31,10 @@ optional arguments:
   --model FILE, -m FILE
                         Specify the file in which the model is stored
                         (default: MODEL.pth)
-  --input INPUT [INPUT ...], -i INPUT [INPUT ...]
-                        filenames of input images (default: None)
-  --output INPUT [INPUT ...], -o INPUT [INPUT ...]
-                        Filenames of ouput images (default: None)
-  --viz, -v             Visualize the images as they are processed (default:
-                        False)
-  --no-save, -n         Do not save the output masks (default: False)
+  --input INPUT dir -i INPUT dir
+                        folder of input images
+  --output OUTPUT dir -o OUTPUT dir
+                        folder of ouput images
   --mask-threshold MASK_THRESHOLD, -t MASK_THRESHOLD
                         Minimum probability value to consider a mask pixel
                         white (default: 0.5)
