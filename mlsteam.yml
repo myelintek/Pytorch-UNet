@@ -9,4 +9,4 @@ hashtag:
 input:
 - dest: /mlsteam/input/car_masking
   source: car_masking
-name: segmentaion
+name: car_masking segmentaion
