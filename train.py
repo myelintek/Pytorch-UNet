@@ -20,9 +20,9 @@ from torchsummary import summary
 
 import time
 
-dir_img = '/mlsteam/input/train/'
-dir_mask = '/mlsteam/input/train_masks/'
-dir_checkpoint = '/mlsteam/lab/checkpoints/'
+dir_img = '/mlsteam/input/car_masking/train/'
+dir_mask = '/mlsteam/input/car_masking/train_masks/'
+dir_checkpoint = './checkpoints/'
 
 
 def train_net(net,
