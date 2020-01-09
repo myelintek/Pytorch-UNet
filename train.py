@@ -16,6 +16,10 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
+from torchsummary import summary
+
+import time
+
 dir_img = '/mlsteam/input/train/'
 dir_mask = '/mlsteam/input/train_masks/'
 dir_checkpoint = '/mlsteam/lab/checkpoints/'
@@ -29,7 +33,8 @@ def train_net(net,
               val_percent=0.1,
               save_cp=True,
               img_scale=0.5,
-              val_epoch=1.0):
+              val_epoch=1.0,
+              gpu_list=None):
 
     if (isinstance(net, nn.DataParallel)):
         origin_net = net.module
@@ -37,6 +42,12 @@ def train_net(net,
         origin_net = net
 
     dataset = BasicDataset(dir_img, dir_mask, img_scale)
+
+    # get first image's shape, pass into summary
+    summary(origin_net, dataset.__getitem__(0)['image'].size(), batch_size=batch_size//len(gpu_list))
+
+    net.to(device=device)
+
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
     train, val = random_split(dataset, [n_train, n_val])
@@ -69,6 +80,8 @@ def train_net(net,
     else:
         criterion = nn.BCEWithLogitsLoss()
 
+    t_start = time.time()
+
     for epoch in range(epochs):
         net.train()
 
@@ -93,7 +106,7 @@ def train_net(net,
                 writer.add_scalar('Loss/train', loss.item(), global_step)
 
                 #pbar.set_postfix(**{'loss (batch)': loss.item()})
-                print("Training: epoch {:6.4f}, loss {} ".format((global_step*batch_size/n_train), loss.item()))
+                print("{:.2f} Training: epoch {:6.4f}, loss {} ".format(time.time()-t_start, (global_step*batch_size/n_train), loss.item()))
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -101,23 +114,23 @@ def train_net(net,
 
                 #pbar.update(imgs.shape[0])
                 global_step += 1
-                if (global_step * batch_size) % (n_train // (batch_size / val_epoch)) == 0:
+                if global_step % (n_train * val_epoch // batch_size) == 0:
                     val_score = eval_net(net, val_loader, device, n_val)
                     if origin_net.n_classes > 1:
                         #logging.info('Validation cross entropy: {}'.format(val_score))
-                        print("Validation: epoch {:6.4f}, cross_entropy {} ".format((global_step * batch_size/n_train), val_score))
+                        print("{:.2f} Validation: epoch {:6.4f}, cross_entropy {} ".format(time.time()-t_start, (global_step * batch_size/n_train), val_score))
                         writer.add_scalar('Loss/test', val_score, global_step)
 
                     else:
                         #logging.info('Validation Dice Coeff: {}'.format(val_score))
-                        print("Validation: epoch {:6.4f}, Dice_Coeff {} ".format((global_step * batch_size/n_train), val_score))
+                        print("{:.2f} Validation: epoch {:6.4f}, Dice_Coeff {} ".format(time.time()-t_start, (global_step * batch_size/n_train), val_score))
                         writer.add_scalar('Dice/test', val_score, global_step)
 
                     # spent to much resource
                     #writer.add_images('images', imgs, global_step)
-                    if origin_net.n_classes == 1:
-                        writer.add_images('masks/true', true_masks, global_step)
-                        writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
+                    #if origin_net.n_classes == 1:
+                    #    writer.add_images('masks/true', true_masks, global_step)
+                    #    writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
 
         if save_cp:
             try:
@@ -125,7 +138,7 @@ def train_net(net,
                 logging.info('Created checkpoint directory')
             except OSError:
                 pass
-            torch.save(net.state_dict(),
+            torch.save(origin_net.state_dict(),
                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
@@ -180,6 +193,9 @@ if __name__ == '__main__':
     #   - For 2 classes, use n_classes=1
     #   - For N > 2 classes, use n_classes=N
     net = UNet(n_channels=3, n_classes=1)
+    if device.type == 'cuda':
+        net.cuda()
+
     logging.info(f'Network:\n'
                  f'\t{net.n_channels} input channels\n'
                  f'\t{net.n_classes} output channels (classes)\n'
@@ -194,12 +210,12 @@ if __name__ == '__main__':
     if device.type == 'cuda':
         if torch.cuda.device_count() > 1:
             if args.gpu_list:
-                net = nn.DataParallel(net, device_ids=args.gpu_list)
                 device=torch.device(args.gpu_list[0])
+                if len(args.gpu_list) > 1:
+                    net = nn.DataParallel(net, device_ids=args.gpu_list)
             else:
                 net = nn.DataParallel(net)
     
-    net.to(device=device)
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 
@@ -211,7 +227,8 @@ if __name__ == '__main__':
                   device=device,
                   img_scale=args.scale,
                   val_percent=args.val / 100,
-                  val_epoch=args.val_epoch)
+                  val_epoch=args.val_epoch,
+                  gpu_list=args.gpu_list)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')
