@@ -1,6 +1,6 @@
 command: python3 /mlsteam/lab/train.py -b 1
 description: Carvana Image Masking Challenge
-env: myelintek/python-gpu:v9
+env: myelintek/python-gpu:v10
 gpu: 1
 hashtag:
 - car_masking
